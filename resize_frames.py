@@ -1,7 +1,6 @@
 import argparse
 from pathlib import Path
 import logging
-
 logging.basicConfig(
     level = logging.INFO,
     format = '{asctime} - {levelname} - {message}',
@@ -55,7 +54,7 @@ def process_frames(video_path,output_path, size):
 def main():
     input_path, output_path, size = parse()
     video_paths = list(input_path.glob('*.mp4'))
-    
+
     if video_paths:
         logger.info(f'{len(video_paths)} videos were found')
         for video_path in video_paths:
