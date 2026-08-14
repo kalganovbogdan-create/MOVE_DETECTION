@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import logging
+import cv2
 logging.basicConfig(
     level = logging.INFO,
     format = '{asctime} - {levelname} - {message}',
@@ -39,18 +40,25 @@ def parse():
     return input_path, output_path, size
 
 
-def process_frames(video_path,output_path, size):
+def resize_frame(frame, size):
 
     """
-    тут будет реализоваться логика масштабирования кадров из видео из video_path 
-    и сохранения результатов в output_path
+    тут будет реализоваться логика масштабирования кадров(frame) до нужного размера(size)
     """
-    logger.info(f'{video_path} is processing')
-    output_path.mkdir(parents =True, exist_ok = True)
-
-    return 0 #возвращает количество обработанных кадров
+    logger.info(f'frame is processing')
+    resized_frame = cv2.resize(frame,size,interpolation=cv2.INTER_LINEAR)
+    return resize_frame
+    
         
+def proccess_frames(video_path,output_path, size):
+    '''здесь реализуется вся логика работы с видео из input_path:
+            1) масштабирует кадры под size
+            2) cохраняет результат в ouptput_path
+        proccess_frames возвращает количество сохраненных файлов
 
+
+    '''
+    return 0
 def main():
     input_path, output_path, size = parse()
     video_paths = list(input_path.glob('*.mp4'))
@@ -59,6 +67,7 @@ def main():
         logger.info(f'{len(video_paths)} videos were found')
         for video_path in video_paths:
             count = process_frames(video_path, output_path, size)
+            
             logger.info(f'{count} frames were processed and saved')
     else:
         logger.warning('No .mp4 files found, exiting')
