@@ -1,5 +1,26 @@
+# Python
 __pycache__/
-*.pyc
-__pycache__/
-*.pyc
-__pycache__
+*.py[cod]
+*.pyo
+
+# Виртуальное окружение
+venv/
+.venv/
+
+# Среда и секреты
+.env
+
+# Временные файлы редакторов
+*.swp
+*.swo
+.DS_Store
+
+# Данные и модели (не коммитим большие файлы)
+*.mp4
+*.avi
+*.pt
+*.onnx
+data/
+
+# Jupyter
+.ipynb_checkpoints/
