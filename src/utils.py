@@ -1,27 +1,62 @@
-import cv2
-import matplotlib
-matplotlib.use('Agg') # headless backend, no display needed
-import matplotlib.pyplot as plt 
+import cv2 as cv 
 import numpy as np
 from pathlib import Path
+import functools
+import time
 
+def clear_mask(mask, kernel_shape):# kernel_shape лежит в config.yaml под названием CLEAR_MASK_KERNEL_SHAPE в виде 
+    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, kernel_shape)
+    cm = cv.morphologyEx(mask,cv.MORPH_OPEN,kernel)
+    cm = cv.morphologyEx(cm,cv.MORPH_CLOSE,kernel)
+    return cm
 
-def plot_detection_result(image:np.ndarray, boxes:list[list[float]], labels:list[str],save_path:Path) -> None:
+def define_csv_or_log(path:str):
     '''
-    boxes have format: [[x, y, w, h], ...], where:
-    x, y - coordinates of the left upper corner
-    w, h - the width and height of the box respectively
+    'define_csv_or_log' function determines the file extension log or csv, otherwise returns None
     '''
-    img = image.copy()
-    for box, label in zip(boxes,labels):
-        x, y, w, h = box
+    npath = Path(path)
+    if npath.suffix == '.csv':
+        return 'csv'
+    elif npath.suffix == '.log':
+        return 'log'
+    else:
+        return None
 
-        cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
-        cv2.putText(img, label, (x, y-10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 5)
-    plt.figure(figsize=(20,15))
-    plt.imshow(img[:,:,::-1])
-    plt.savefig(save_path)
+def log_check_decorator(func):
+        '''
+        a decorator that checks that a class method is used for the 'log' file type  
+        '''
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+            if not self.file_type == 'log':
+                raise ValueError(f'There is no such method for a file with the {self.file_type} extension.')
+            value = func(*args, **kwargs)
+            return value
+        return wrapper
 
-    plt.close()
+
+def csv_check_decorator(func):
+        '''
+        a decorator that checks that a class method is used for the 'csv' file type  
+        '''
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+            if not self.file_type == 'csv':
+                raise ValueError(f'There is no such method for a file with the {self.file_type} extension.')
+            value = func(*args, **kwargs)
+            return value
+        return wrapper
+
+def write_detection_result(frame, display_name, time):
+    pass
+
+
+def get_time():
+    t = time.localtime()
+    exact_time = time.strftime("%Y-%m-%d %H-%M-%S",t)
+    date = time.strftime("%Y-%m-%d",t)
+    return date, exact_time
+

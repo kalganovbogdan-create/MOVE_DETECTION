@@ -1,0 +1,10 @@
+CLEAR_MASK_KERNEL_SHAPE:
+  - 5
+  - 5
+CSV_STORAGE_PATH: C:\Users\Bogdan1\Desktop\data_rtsp.csv
+LOGGER_PATH_TO_LOG_FILE: C:\Users\Bogdan1\Desktop\app.log
+MIN_AREA: 500
+MIN_CONTOUR_AREA: 500
+RELEASE_CAPTURE: true
+RTSP_URL: http://61.211.241.239/nphMotionJpeg?Resolution=320x240&Quality=Standard
+VIDEO_STORAGE_PATH: C:\Users\Bogdan1\Videos\Video_cam_videos
