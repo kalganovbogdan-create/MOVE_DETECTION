@@ -36,7 +36,7 @@ def main():
             break
         buffer, motion_id  = next(buffer_generator)
         fps = reader.capture.get(cv.CAP_PROP_FPS) or 10
-
+        
         #buffer,motion_id,fps,W,H    
         logger.save_motion(frame_buffer=buffer,
                            motion_id=motion_id,

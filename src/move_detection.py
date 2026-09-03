@@ -135,6 +135,7 @@ class MotionDetector:
         self.MIN_CONTOUR_AREA=config['MIN_CONTOUR_AREA']
         self.backSub = cv.createBackgroundSubtractorMOG2()
         self.frame_buffer:list[np.ndarray] = []#для записи 1 до начала движения и 1 минту после конца движения 
+        self.show_flag:bool = True
     def detect(self, frame: np.ndarray): 
         '''
         возвращает:
@@ -146,9 +147,19 @@ class MotionDetector:
         timestamp = time.time()
         if cv.countNonZero(mask) < self.MIN_AREA:
             return False, timestamp, None
+        if self.show_flag:
+            self.show(mask,frame)
         bboxes = utils.get_bboxes(mask,self.MIN_CONTOUR_AREA)
-        return True, timestamp, bboxes
         
+        return True, timestamp, bboxes
+    def show(self,mask,frame):
+        cv.imshow('stream', frame)
+        cv.imshow('mask', mask)
+        k = cv.waitKey(1)
+        if  k == 27:
+            self.show_flag = False
+            cv.destroyAllWindows()
+                   
 
         
     

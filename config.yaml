@@ -1,12 +1,9 @@
 CLEAR_MASK_KERNEL_SHAPE:
-  - 5
-  - 5
+  - 3
+  - 3
 LOGGER_PATH_TO_CSV_FILE: C:\Users\Bogdan1\Desktop\data_rtsp.csv
 LOGGER_PATH_TO_LOG_FILE: C:\Users\Bogdan1\Desktop\app.log
-MIN_AREA: 400
-MIN_CONTOUR_AREA: 90
+MIN_AREA: 50
+MIN_CONTOUR_AREA: 10
 RTSP_URL: http://61.211.241.239/nphMotionJpeg?Resolution=320x240&Quality=Standard
 VIDEO_STORAGE_PATH: C:\Users\Bogdan1\Videos\Video_cam_videos
-TIME_BEFORE_DETECT: 60
-TIME_AFTER_DETECT: 60
-RELEASE: false
