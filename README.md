@@ -26,7 +26,7 @@ config.yaml:
 - `MIN_AREA` - минимальное количество ненулевых пикселей на маске выше которого мы считаем что движение произошло
 - `MIN_CONTOUR_AREA` - минимальная площадь контура начиная с которой мы наносим его bbox-ы на записываемые кадры в память и сsv файл  
 ## Project Structure
-\```
+\`
 project/
 
 ├── src/
@@ -40,7 +40,7 @@ project/
 ├── config.yaml
 
 └── requirements.txt
-\```
+\`
 
 ## How it works
 детекция происходит спомощью метода `MOG2 background subtraction`, который встроен в OpenCV
