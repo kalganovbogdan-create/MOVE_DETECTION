@@ -28,11 +28,17 @@ config.yaml:
 ## Project Structure
 \```
 project/
+
 ├── src/
+
 │   ├── move_detection.py
+
 │   └── utils.py
+
 ├── app.py
+
 ├── config.yaml
+
 └── requirements.txt
 \```
 
