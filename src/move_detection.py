@@ -7,190 +7,150 @@ import logging
 import pandas as pd
 import time 
 
-
-class VideoReader:
-    def __init__(self, output_dir:str):
-        self.output_dir = output_dir
-
-    def write(self, capture,
-              backSub,
-              mask,
-              MIN_AREA,
-              MIN_CONTOUR_AREA,
-              logger,
-              logger_csv,
-              CLEAR_MASK_KERNEL_SHAPE,
-              frame_id):
-
-            
-            if cv.countNonZero(mask) > MIN_AREA:
-
-                date, exact_time = utils.get_time()
-                path = Path(self.output_dir) / Path(date + '.mp4')
-                if not path.parent.exists():
-                    path.parent.mkdir(parents=True,exist_ok=True)  
-                    
-                W = int(capture.get(cv.CAP_PROP_FRAME_WIDTH))
-                H = int(capture.get(cv.CAP_PROP_FRAME_HEIGHT))
-                fourcc = cv.VideoWriter_fourcc(*'mp4v')
-                fps = capture.get(cv.CAP_PROP_FPS) or 30
-                writer = cv.VideoWriter(str(path), fourcc,fps, (W,H), isColor=False)
-
-
-                while cv.countNonZero(mask) > MIN_AREA:
-                    ret,frame=capture.read()
-                    frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-                    if not ret or frame is None:
-                        logger.log_info('The video stream was interrupted due to a server-side error')
-                        break
-                    fgMask = backSub.apply(frame)
-                    mask = utils.clear_mask(fgMask,kernel_shape=CLEAR_MASK_KERNEL_SHAPE)
-                    res = cv.bitwise_and(frame, frame, mask = mask)
-                    contours, _ = cv.findContours(mask,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)
-                    boxes = []
-                    for cnt in contours:
-                
-                        if cv.contourArea(cnt) < MIN_CONTOUR_AREA:
-                            continue
-                        x, y, w, h = cv.boundingRect(cnt)
-                        _, timestamp = utils.get_time()
-                        add_to_csv = pd.DataFrame([{'timestamp':timestamp,
-                                      'frame_id':frame_id, 'bbox_x':x,
-                                      'bbox_y':y,
-                                      'bbox_w':w,
-                                      'bbox_h':h}])
-                        logger_csv.csv_write_data(add_to_csv)
-                        cv.rectangle(res,(x,y),(x+w,y+h),color=(255,255,255), thickness=2)
-                        cv.rectangle(res, (10, 2), (100,20), (255,255,255), -1)
-                        cv.putText(res,timestamp, (15, 15), cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 0), 1, cv.LINE_AA)
-                        writer.write(res)
-                writer.release()
-
-    
-    
+#______________________________________________________________________________________________________________________________________________
 class VideoLogger:
-    def __init__(self, output_path:str):
-        '''
-        if not Path(output_path).exists():
-            raise ValueError(f'Invalid file path {output_path} for the "VideoLogger" class')
-        '''
-        self.output_path = output_path
-        self.file_type = utils.define_csv_or_log(output_path)
-
+    def __init__(self, LOG_PATH, CSV_PATH, VIDEO_PATH):
+        self.logger = utils.LogLogger(LOG_PATH)
+        self.csv_logger = utils.CSVLogger(CSV_PATH, self.logger)
+        self.VIDEO_PATH = VIDEO_PATH
+    def save_motion(self, frame_buffer:list[list], motion_id:int, fps:int, W:int,H:int):
+        if not frame_buffer:
+            return 
+        save_path = Path(self.VIDEO_PATH) / Path(f'{motion_id}.mp4')
+        if not save_path.parent.exists():
+            save_path.parent.mkdir(parents=True,exist_ok=True)
+        fourcc = cv.VideoWriter_fourcc(*'mp4v')
+        writer = cv.VideoWriter(str(save_path),fourcc,fps,(W,H))
         
-        if self.file_type == 'log':
-            self.logger = logging.getLogger(__name__)
-            file_hundler = logging.FileHandler(self.output_path, mode = 'a', encoding='utf-8')
-            formatter = logging.Formatter('{levelname} - {asctime} - {message}', style='{', datefmt='%Y-%m-%d %H:%M')
-            file_hundler.setFormatter(formatter)
-            self.logger.setLevel('INFO')
-            file_hundler.setLevel('INFO')
-            self.logger.addHandler(file_hundler)
-        elif self.file_type == 'csv':
-            try:
-                self.df = pd.read_csv(self.output_path)
-            except:
-                self.df = pd.DataFrame(columns=['timestamp', 'frame_id', 'bbox_x','bbox_y','bbox_w','bbox_h'])
-                self.df.to_csv('data_rtsp.csv', index=False)
-            right_columns = ['timestamp', 'frame_id', 'bbox_x','bbox_y','bbox_w','bbox_h']
-            if not list(self.df.columns):
-                self.df_is_empty = True
-            elif list(self.df.columns) != right_columns:
-                self.df = pd.DataFrame(columns=['timestamp', 'frame_id', 'bbox_x','bbox_y','bbox_w','bbox_h'])
-                self.df_is_empty = True
-            else:
-                self.df_is_empty = False
-            
-            pass
-        else:
-            raise ValueError('Invalid file extension, file extension must be csv or log')
-    
-    # эти методы используются для запись в файл с log расширением 
-    @utils.log_check_decorator
-    def log_info(self, message):
-        self.logger.info(message)
-    @utils.log_check_decorator
-    def log_warning(self, message):
-        self.logger.warning(message)
-    @utils.log_check_decorator
-    def log_error(self, message:str):
-        self.logger.error(message)
-    @utils.log_check_decorator
-    def log_critical(self, message):
-        self.logger.critical(message)
+        for frame_box in frame_buffer:
+            if frame_box[1] is not None:
+                    writer.write(frame_box[1])
+        writer.release()
 
-    @utils.csv_check_decorator
-    def csv_write_data(self,data:pd.DataFrame):
-        if self.df_is_empty:
-            self.df = data
-        else:
-            if list(data.columns) == list(self.df):
-                self.df = pd.concat([self.df,data], ignore_index=True)
-            else:
-                raise ValueError('Invalid format of written data')
-        pass
-    
-class MotionDetector:
-    def __init__(self, config:dict):
-        self.config = config
-        self.CLEAR_MASK_KERNEL_SHAPE = tuple(config['CLEAR_MASK_KERNEL_SHAPE'])
-        self.MIN_AREA = config['MIN_AREA'] #порог чувствительности 
+#______________________________________________________________________________________________________________________________________________
+class VideoReader:
+    def __init__(self, logger:logging,Logger:VideoLogger, config):
         self.RTSP_URL = config['RTSP_URL']
-        self.VIDEO_STORAGE_PATH = config['VIDEO_STORAGE_PATH']
-        self.MIN_CONTOUR_AREA = config['MIN_CONTOUR_AREA']
-        self.logger = VideoLogger(config['LOGGER_PATH_TO_LOG_FILE'])
-        self.logger_csv = VideoLogger(config['CSV_STORAGE_PATH'])
-        self.frame_id = 0
-        self.writer = VideoReader(self.VIDEO_STORAGE_PATH)
-        self.release = False
-
-    def detect(self, mode:Literal['show','write']='write'):
-        self.capture = cv.VideoCapture(self.RTSP_URL, cv.CAP_FFMPEG)
-        
+        self.frame_id:int = 0
+        self.frame_buffer:list[np.ndarray] = []
+        self.motion_id:int = 0
+        self.logger  = logger
+        self.detector = MotionDetector(config)
+        self.frame_generator = self.read()
+    def start_capture(self, RTSP_URL):
+        self.capture = cv.VideoCapture(RTSP_URL, cv.CAP_FFMPEG) 
         if not self.capture.isOpened():
-            self.logger.log_error('Error connecting to the camera via RTSP URL')
-            raise ValueError('Error connecting to the camera via RTSP URL')
-        backSub = cv.createBackgroundSubtractorMOG2()
+            self.capture.release()
+            raise ValueError('Не удалось подключиться к камере')
+        
+    def release_capture(self):
+        self.capture.release()
+
+    def read(self):
+        while True:
+            try:
+                ret, frame = self.capture.read()
+            except:
+                self.logger.error('Ошибка поучения кадра')
+                raise ValueError('Ошибка поучения кадра')
+            
+            if frame is None:
+                for _ in range(5):
+                    self.capture.release()
+                    self.capture = cv.VideoCapture(self.RTSP_URL, cv.CAP_FFMPEG)
+                    ret, frame = self.capture.read()
+                    if ret:
+                        break
+                if not ret:
+                    self.logger.error('Ошибка в чтении кадра, отключаюсь от камеры')
+                    self.capture.release()
+                    raise ValueError('Ошибка в чтении кадра')
+            frame_id = self.frame_id
+            self.frame_id+=1
+
+            yield frame_id, frame
+
+    
+    def write_buffer(self, csv_logger:utils.CSVLogger):
+        '''
+        записывает кадры и мх id с камеры за 1 минуту до начала движеняи и 1 мнуту после конца движения
+
+        '''
+        
+        fps = int(round(self.capture.get(cv.CAP_PROP_FPS))) or 10
+        self.logger.info('начало работы write buffer')
+        trigger = int(round(fps*5))
 
         while True:
-            if self.release:
-                self.capture.release()
-                self.logger.log_warning('video stream is disabled')
-                break
 
-
-            ret, frame = self.capture.read()
-            if not ret or frame is None:
-                self.logger.log_error('The video stream was interrupted due to a server-side error')
-                break
+            self.logger.info('начали записывать буффер')
+            if len(self.frame_buffer) > trigger:
+                N = len(self.frame_buffer)
+                self.frame_buffer = self.frame_buffer[N-trigger:]
             
-            fgMask = backSub.apply(frame)
-            mask = utils.clear_mask(fgMask,kernel_shape=self.CLEAR_MASK_KERNEL_SHAPE)
+            while len(self.frame_buffer) < trigger:
+                local_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
+                frame_id, frame = next(self.frame_generator)
+                self.frame_buffer.append([frame_id, frame])
+                cv.rectangle(frame, (10, 2), (100,20), (255,255,255), -1)
+                cv.putText(frame, f'time={local_time}', (15, 15), cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 0), 1, cv.LINE_AA)
+            self.logger.info('пераввя часть буффера готова ')
 
-            self.writer.write(self.capture,
-                              backSub,
-                              mask,
-                              self.MIN_AREA,
-                              self.MIN_CONTOUR_AREA,
-                              self.logger,
-                              self.logger_csv,
-                              self.CLEAR_MASK_KERNEL_SHAPE,
-                              self.frame_id)
-            self.frame_id +=1
-            k = cv.waitKey(0)
-            if k == 27:
-                self.release = True
-    def IsCapOpened(self):
-        return self.capture.isOpened()
-    def release(self):
-        if self.IsCapOpened(self):
-            self.capture.release()
-        else:
-            self.logger.warning('can`t release capture, capture doesn`t open')
-            raise ValueError('capture doesn`t open')
-    def get_log_logger(self):
-        return self.logger
 
+            motion_detected = False
+            i = 0
+            while i < trigger:
+                frame_id, frame = next(self.frame_generator)
+                motion_flag, timestamp, bboxes = self.detector.detect(frame)
+                
+                local_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(timestamp))
+                cv.rectangle(frame, (10, 2), (100,20), (255,255,255), -1)
+                cv.putText(frame, f'time={local_time}', (15, 15), cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 0), 1, cv.LINE_AA)
+                self.frame_buffer.append([frame_id, frame])
+                i+=1
+                if motion_flag:
+                    self.logger.info('движение замечано motion_flag == True')
+                    utils.draw_bboxes(frame,bboxes)
+                    csv_logger.write(frame_id,self.motion_id,timestamp,bboxes)
+                    motion_detected = True
+                    i=0
+            self.logger.info('закончили записывать буффер')
+            csv_logger.save()
+            self.logger.info('численные значения сохранены в csv file')
+            if not motion_detected:
+                self.logger.info('движение не произошло, возвращаем пустой буффер')
+                yield [], self.motion_id
+            else:
+                self.logger.info('движение произошло, возвращаем буффер с кадрами')
+                self.motion_id += 1
+                yield self.frame_buffer, self.motion_id
+            
+            
+#______________________________________________________________________________________________________________________________________________
+class MotionDetector:
+
+    def __init__(self, config:dict):
+        self.CLEAR_MASK_KERNEL_SHAPE=config['CLEAR_MASK_KERNEL_SHAPE']
+        self.MIN_AREA=config['MIN_AREA']
+        self.MIN_CONTOUR_AREA=config['MIN_CONTOUR_AREA']
+        self.backSub = cv.createBackgroundSubtractorMOG2()
+        self.frame_buffer:list[np.ndarray] = []#для записи 1 до начала движения и 1 минту после конца движения 
+    def detect(self, frame: np.ndarray): 
+        '''
+        возвращает:
+        detect_flag:bool - True если было замечано движение False елси нет
+        timestamp:float - время в секундах 
+        bboxes:list[tuple] - [(x,y,w,h),...] - координаты и размеры bbox-ов, если движение не замечано, то None  
+        '''
+        mask = utils.clear_mask(self.backSub.apply(frame), kernel_shape=self.CLEAR_MASK_KERNEL_SHAPE)
+        timestamp = time.time()
+        if cv.countNonZero(mask) < self.MIN_AREA:
+            return False, timestamp, None
+        bboxes = utils.get_bboxes(mask,self.MIN_CONTOUR_AREA)
+        return True, timestamp, bboxes
+        
+
+        
     
                             
 
